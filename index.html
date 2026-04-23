@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Геометрические симметрии</title>
+
+<style>
+body { font-family: Arial; padding: 20px; background:#f5f7fb; }
+h1 { margin-bottom: 10px; }
+
+.controls button {
+  margin-right:5px;
+  padding:6px 12px;
+  border:none;
+  border-radius:6px;
+  background:#e0e7ff;
+  cursor:pointer;
+}
+.controls button:hover { background:#c7d2fe; }
+
+#canvas {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  border: 2px solid #333;
+  margin-top: 15px;
+  background: white;
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.point {
+  position:absolute;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+.original { background:blue; cursor:pointer; }
+.symmetry { background:red; }
+.center { background:black; width:12px; height:12px; }
+
+.axis {
+  position:absolute;
+  background:black;
+}
+
+.vector-line {
+  position:absolute;
+  height:2px;
+  background:green;
+  transform-origin:0 0;
+}
+
+.arrow {
+  position:absolute;
+  width:0;
+  height:0;
+  border-left:8px solid green;
+  border-top:5px solid transparent;
+  border-bottom:5px solid transparent;
+  transform-origin:left center;
+}
+
+.link-line {
+  position:absolute;
+  height:2px;
+  background:rgba(120,120,120,0.6);
+  transform-origin:0 0;
+}
+
+.circle-guide {
+  position:absolute;
+  border:2px dashed rgba(0,0,0,0.25);
+  border-radius:50%;
+}
+
+.angle-arc {
+  position:absolute;
+  border-radius:50%;
+  border:2px dashed rgba(0,0,0,0.5);
+  transform:translate(-50%,-50%);
+}
+
+.label { font-size:13px; margin-top:10px; }
+
+</style>
+</head>
+
+<body>
+
+<h1>Геометрические симметрии</h1>
+
+<div class="controls">
+  <button onclick="setMode('axis')">Осевая</button>
+  <button onclick="setMode('central')">Центральная</button>
+  <button onclick="setMode('vector')">Векторная</button>
+  <button onclick="setMode('rotate')">Поворот</button>
+  <button onclick="clearPoints()">Очистить</button>
+</div>
+
+<div id="angleControl" style="display:none; margin-top:10px;">
+  Угол: <span id="angleValue">45</span>°
+  <br>
+  <input type="range" min="0" max="360" value="45" oninput="updateAngle(this.value)">
+</div>
+
+<div id="canvas" onclick="addPoint(event)"></div>
+
+<p class="label">
+Клик — добавить точку. Клик по синей — удалить.
+</p>
+
+<script>
+const size = 320;
+const center = { x: size/2, y: size/2 };
+const vector = { x: 80, y: 40 };
+
+let shapes = [
+  { x: 60, y: 60 },
+  { x: 140, y: 90 },
+  { x: 100, y: 180 }
+];
+
+let mode = 'axis';
+let angle = 45;
+
+function setMode(m){
+  mode = m;
+  document.getElementById('angleControl').style.display =
+    (mode === 'rotate') ? 'block' : 'none';
+  draw();
+}
+
+function updateAngle(val){
+  angle = val;
+  document.getElementById('angleValue').innerText = val;
+  draw();
+}
+
+function addPoint(e){
+  const r = e.currentTarget.getBoundingClientRect();
+  shapes.push({x:e.clientX-r.left, y:e.clientY-r.top});
+  draw();
+}
+
+function removePoint(i){
+  shapes.splice(i,1);
+  draw();
+}
+
+function clearPoints(){
+  shapes = [];
+  draw();
+}
+
+/* ✅ ПРАВИЛЬНЫЙ ПОВОРОТ (как в геометрии) */
+function getSymmetry(p){
+  switch(mode){
+
+    case 'axis':
+      return { x: size - p.x, y: p.y };
+
+    case 'central':
+      return { x: 2*center.x - p.x, y: 2*center.y - p.y };
+
+    case 'vector':
+      return { x: p.x + vector.x, y: p.y + vector.y };
+
+    case 'rotate': {
+      const rad = -angle * Math.PI / 180; // важно!
+
+      const dx = p.x - center.x;
+      const dy = p.y - center.y;
+
+      return {
+        x: center.x + dx*Math.cos(rad) - dy*Math.sin(rad),
+        y: center.y + dx*Math.sin(rad) + dy*Math.cos(rad)
+      };
+    }
+  }
+}
+
+function drawLine(canvas,x1,y1,x2,y2,className){
+  const line=document.createElement('div');
+  line.className=className;
+
+  const dx=x2-x1;
+  const dy=y2-y1;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  const ang=Math.atan2(dy,dx)*180/Math.PI;
+
+  line.style.width=len+'px';
+  line.style.left=x1+'px';
+  line.style.top=y1+'px';
+  line.style.transform=`rotate(${ang}deg)`;
+
+  canvas.appendChild(line);
+}
+
+function drawArc(canvas, cx, cy, r, a1, a2){
+  const arc=document.createElement('div');
+  arc.className='angle-arc';
+
+  arc.style.width = r*2+'px';
+  arc.style.height = r*2+'px';
+  arc.style.left = cx+'px';
+  arc.style.top = cy+'px';
+
+  arc.style.transform = 'translate(-50%,-50%)';
+  arc.style.borderColor = 'rgba(0,0,0,0.6)';
+
+  canvas.appendChild(arc);
+}
+
+function draw(){
+  const canvas=document.getElementById('canvas');
+  canvas.innerHTML='';
+
+  shapes.forEach((p,i)=>{
+    const s = getSymmetry(p);
+
+    /* связь */
+    drawLine(canvas,p.x,p.y,s.x,s.y,'link-line');
+
+    /* ОРИГИНАЛ */
+    const o=document.createElement('div');
+    o.className='point original';
+    o.style.left=p.x+'px';
+    o.style.top=p.y+'px';
+    o.onclick=(e)=>{e.stopPropagation();removePoint(i);};
+    canvas.appendChild(o);
+
+    /* ОБРАЗ */
+    const sp=document.createElement('div');
+    sp.className='point symmetry';
+    sp.style.left=s.x+'px';
+    sp.style.top=s.y+'px';
+    canvas.appendChild(sp);
+
+    /* VECTOR */
+    if(mode==='vector'){
+      drawLine(canvas,p.x,p.y,s.x,s.y,'vector-line');
+    }
+
+    /* ROTATION CONSTRUCTION (как в тетради) */
+    if(mode==='rotate'){
+      drawLine(canvas,center.x,center.y,p.x,p.y,'link-line');
+      drawLine(canvas,center.x,center.y,s.x,s.y,'link-line');
+
+      const a1 = Math.atan2(p.y-center.y,p.x-center.x)*180/Math.PI;
+      const a2 = Math.atan2(s.y-center.y,s.x-center.x)*180/Math.PI;
+
+      drawArc(canvas,center.x,center.y,40,a1,a2);
+    }
+  });
+
+  /* центр */
+  if(mode==='central'||mode==='rotate'){
+    const c=document.createElement('div');
+    c.className='point center';
+    c.style.left=center.x+'px';
+    c.style.top=center.y+'px';
+    canvas.appendChild(c);
+  }
+
+  /* ось */
+  if(mode==='axis'){
+    const a=document.createElement('div');
+    a.className='axis';
+    a.style.width='2px';
+    a.style.height=size+'px';
+    a.style.left=center.x+'px';
+    canvas.appendChild(a);
+  }
+}
+
+draw();
+</script>
+
+</body>
+</html>
